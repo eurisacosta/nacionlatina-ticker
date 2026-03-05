@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Nación Latina Scoreboard</title>
+
+<style>
+  :root{
+    --w: 900px;
+    --h: 340px;
+
+    --bgA:#6b0f18; --bgB:#8a1b24; --bgC:#0b2c55; --bgD:#061a35;
+    --line: rgba(255,255,255,0.16);
+    --muted: rgba(255,255,255,0.72);
+    --text: rgba(255,255,255,0.96);
+    --gold: #ffd54a;
+
+    --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  }
+
+  html,body{margin:0;background:transparent;font-family:var(--font);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
+
+  #wrap{
+    width:var(--w); height:var(--h);
+    background: linear-gradient(135deg,var(--bgA) 0%,var(--bgB) 35%,var(--bgC) 72%,var(--bgD) 100%);
+    border-radius:16px; box-shadow: 0 18px 55px rgba(0,0,0,.55);
+    overflow:hidden; position:relative;
+  }
+
+  #wrap::before{
+    content:"";
+    position:absolute; width:320px;height:320px;
+    left:50%;top:54%; transform:translate(-50%,-50%);
+    background:url("logos/nacion.png") no-repeat center;
+    background-size:contain; opacity:0.10;
+    pointer-events:none;
+    filter: drop-shadow(0 10px 30px rgba(0,0,0,.35));
+  }
+
+  #wrap::after{
+    content:""; position:absolute; inset:0;
+    background:
+      radial-gradient(circle at 25% 20%, rgba(255,255,255,.10), transparent 55%),
+      radial-gradient(circle at 75% 85%, rgba(0,0,0,.22), transparent 62%);
+    pointer-events:none;
+  }
+
+  #top{padding:18px 18px 12px 18px;position:relative;z-index:2;}
+  #topGrid{display:grid;grid-template-columns:1fr 230px 1fr;align-items:center;gap:14px;}
+
+  .teamBox{display:grid;grid-template-columns:40px 1fr;gap:12px;align-items:center;}
+  .teamBox.right{grid-template-columns:1fr 40px;text-align:right;}
+
+  .logo{width:38px;height:38px;border-radius:10px;object-fit:contain;background: rgba(255,255,255,0.10);box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22);}
+  .abbr{font-weight:1000;letter-spacing:1px;color:var(--text);font-size:26px;line-height:1.05;text-transform:uppercase;text-shadow:0 3px 14px rgba(0,0,0,.35);}
+  .rec{color:var(--muted);font-size:14px;margin-top:4px;font-weight:800;}
+
+  .centerBox{text-align:center;}
+  .inningTop{font-weight:1000;letter-spacing:1.2px;color:var(--muted);font-size:14px;text-transform:uppercase;}
+  .scoreLine{display:flex;align-items:center;justify-content:center;gap:26px;margin-top:8px;}
+  .scoreNum{font-size:52px;font-weight:1000;color:var(--text);min-width:58px;text-align:center;text-shadow:0 4px 18px rgba(0,0,0,.40);}
+  .midStuff{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:110px;}
+
+  .diamond{position:relative;width:44px;height:44px;}
+  .base{position:absolute;width:12px;height:12px;transform:rotate(45deg);border:2px solid rgba(255,255,255,.88);background:transparent;border-radius:2px;}
+  .b2{top:0;left:50%;transform:translateX(-50%) rotate(45deg);}
+  .b1{right:0;top:50%;transform:translateY(-50%) rotate(45deg);}
+  .b3{left:0;top:50%;transform:translateY(-50%) rotate(45deg);}
+  .on{background:var(--gold);border-color:rgba(0,0,0,.20);box-shadow:0 0 16px rgba(255,213,74,.35);}
+
+  .outs{display:flex;gap:8px;}
+  .outDot{width:10px;height:10px;border-radius:50%;border:2px solid rgba(255,255,255,.88);background:transparent;}
+  .outOn{background:rgba(255,255,255,.96);box-shadow:0 0 18px rgba(255,255,255,.22);}
+
+  .count{font-weight:1000;font-size:16px;color:rgba(255,255,255,.92);letter-spacing:.6px;text-shadow:0 3px 14px rgba(0,0,0,.30);}
+
+  #divider{height:1px;background:var(--line);position:relative;z-index:2;}
+  #bottom{padding:12px 16px 16px 16px;position:relative;z-index:2;}
+  .subTitle{text-align:center;font-weight:1000;font-size:14px;color:var(--muted);margin:2px 0 10px 0;letter-spacing:1px;text-transform:uppercase;}
+
+  table{width:100%;border-collapse:collapse;font-size:14px;color:var(--text);}
+  th,td{border-bottom:1px solid rgba(255,255,255,.16);padding:8px 8px;text-align:center;font-weight:900;}
+  th{color:var(--muted);font-weight:1000;font-size:13px;}
+  td.left{text-align:left;font-weight:1000;letter-spacing:1px;}
+  tr:last-child td{border-bottom:none;}
+  .totHead{width:28px;}
+</style>
+</head>
+
+<body>
+<div id="wrap">
+  <div id="top">
+    <div id="topGrid">
+      <div class="teamBox">
+        <img id="awayLogo" class="logo" src="logos/default.png" alt="AWAY">
+        <div>
+          <div class="abbr" id="awayAbbr">AWAY</div>
+          <div class="rec" id="awayRec">—</div>
+        </div>
+      </div>
+
+      <div class="centerBox">
+        <div class="inningTop" id="inningLabel">PRE</div>
+        <div class="scoreLine">
+          <div class="scoreNum" id="awayScore">0</div>
+
+          <div class="midStuff">
+            <div class="diamond">
+              <div id="base2" class="base b2"></div>
+              <div id="base1" class="base b1"></div>
+              <div id="base3" class="base b3"></div>
+            </div>
+
+            <div class="outs">
+              <div id="out1" class="outDot"></div>
+              <div id="out2" class="outDot"></div>
+              <div id="out3" class="outDot"></div>
+            </div>
+
+            <div class="count" id="countLabel">0-0</div>
+          </div>
+
+          <div class="scoreNum" id="homeScore">0</div>
+        </div>
+      </div>
+
+      <div class="teamBox right">
+        <div>
+          <div class="abbr" id="homeAbbr">HOME</div>
+          <div class="rec" id="homeRec">—</div>
+        </div>
+        <img id="homeLogo" class="logo" src="logos/default.png" alt="HOME">
+      </div>
+    </div>
+  </div>
+
+  <div id="divider"></div>
+
+  <div id="bottom">
+    <div class="subTitle" id="gameType">EXHIBICIÓN</div>
+    <table id="linescoreTable"></table>
+  </div>
+</div>
+
+<script>
+  function qs(name, fallback=null){
+    const u = new URL(window.location.href);
+    return u.searchParams.get(name) ?? fallback;
+  }
+
+  // config por URL
+  let GAME_PK = parseInt(qs("gamePk","836150"), 10);
+  if (!Number.isFinite(GAME_PK)) GAME_PK = 836150;
+
+  const delaySec = Math.max(0, Math.min(300, parseInt(qs("delay","10"), 10) || 0));
+  const DISPLAY_DELAY_MS = delaySec * 1000;
+
+  const THEME = (qs("theme","nl") || "nl").toLowerCase();
+
+  let OVERRIDE_AWAY = (qs("away","") || "").trim().toUpperCase();
+  let OVERRIDE_HOME = (qs("home","") || "").trim().toUpperCase();
+
+  // 🔥 MAPEOS (para RD/DR -> DOM, etc.)
+  const MAP = {
+    "RD":"DOM",
+    "DR":"DOM",
+    "DOMINICANA":"DOM",
+    "PUERTORICO":"PR",
+    "PUR":"PR"
+  };
+
+  function normAbbr(abbr){
+    if(!abbr) return "";
+    const a = abbr.replace(/\s+/g,'').toUpperCase();
+    return MAP[a] || a;
+  }
+
+  OVERRIDE_AWAY = normAbbr(OVERRIDE_AWAY);
+  OVERRIDE_HOME = normAbbr(OVERRIDE_HOME);
+
+  // auto-logo: logos/ABBR.png
+  const DEFAULT_LOGO = "logos/default.png";
+
+  function setLogo(imgEl, abbr){
+    const a = normAbbr(abbr);
+    if(!a){
+      imgEl.src = DEFAULT_LOGO;
+      return;
+    }
+    const tryPath = `logos/${a}.png`;
+    imgEl.onerror = () => { imgEl.src = DEFAULT_LOGO; };
+    imgEl.src = tryPath;
+  }
+
+  // aplicar logos desde abreviaturas (si no pones abreviatura, usa lo del juego real luego)
+  setLogo(document.getElementById("awayLogo"), OVERRIDE_AWAY);
+  setLogo(document.getElementById("homeLogo"), OVERRIDE_HOME);
+
+  function applyTheme(t){
+    if (t === "dark"){
+      document.documentElement.style.setProperty("--bgA","#061a35");
+      document.documentElement.style.setProperty("--bgB","#0b2c55");
+      document.documentElement.style.setProperty("--bgC","#061a35");
+      document.documentElement.style.setProperty("--bgD","#020b18");
+      document.documentElement.style.setProperty("--text","rgba(255,255,255,.96)");
+      document.documentElement.style.setProperty("--muted","rgba(255,255,255,.72)");
+      document.documentElement.style.setProperty("--line","rgba(255,255,255,.16)");
+      return;
+    }
+    if (t === "light"){
+      document.documentElement.style.setProperty("--bgA","#ffffff");
+      document.documentElement.style.setProperty("--bgB","#f2f2f2");
+      document.documentElement.style.setProperty("--bgC","#ffffff");
+      document.documentElement.style.setProperty("--bgD","#f2f2f2");
+      document.documentElement.style.setProperty("--text","rgba(0,0,0,.92)");
+      document.documentElement.style.setProperty("--muted","rgba(0,0,0,.60)");
+      document.documentElement.style.setProperty("--line","rgba(0,0,0,.12)");
+      return;
+    }
+    document.documentElement.style.setProperty("--bgA","#6b0f18");
+    document.documentElement.style.setProperty("--bgB","#8a1b24");
+    document.documentElement.style.setProperty("--bgC","#0b2c55");
+    document.documentElement.style.setProperty("--bgD","#061a35");
+    document.documentElement.style.setProperty("--text","rgba(255,255,255,.96)");
+    document.documentElement.style.setProperty("--muted","rgba(255,255,255,.72)");
+    document.documentElement.style.setProperty("--line","rgba(255,255,255,.16)");
+  }
+  applyTheme(THEME);
+
+  const history = [];
+
+  function setBases({on1=false,on2=false,on3=false}){
+    document.getElementById('base1').classList.toggle('on', !!on1);
+    document.getElementById('base2').classList.toggle('on', !!on2);
+    document.getElementById('base3').classList.toggle('on', !!on3);
+  }
+  function setOuts(n){
+    document.getElementById('out1').classList.toggle('outOn', n>=1);
+    document.getElementById('out2').classList.toggle('outOn', n>=2);
+    document.getElementById('out3').classList.toggle('outOn', n>=3);
+  }
+  function halfEs(half){
+    const h = (half||'').toLowerCase();
+    if (h === 'top') return 'ALT';
+    if (h === 'bottom') return 'BOT';
+    return '';
+  }
+  function safeAbbr(team){
+    const ab = (team?.abbreviation || '').trim();
+    if (ab) return ab.toUpperCase();
+    const name = (team?.name || '').toLowerCase();
+    if (name.includes('dominican') || name.includes('dominicana')) return 'DOM';
+    if (name.includes('puerto rico')) return 'PR';
+    if (name.includes('detroit')) return 'DET';
+    return (team?.name || '---').slice(0,3).toUpperCase();
+  }
+
+  function renderLinescore(linescore){
+    const inn = linescore?.innings || [];
+    const innCount = Math.max(9, inn.length);
+
+    const awayAb = document.getElementById('awayAbbr').textContent.trim();
+    const homeAb = document.getElementById('homeAbbr').textContent.trim();
+
+    const awayRow = [];
+    const homeRow = [];
+    for (let i=0;i<innCount;i++){
+      const a = inn[i]?.away?.runs;
+      const h = inn[i]?.home?.runs;
+      awayRow.push((typeof a === 'number') ? a : '');
+      homeRow.push((typeof h === 'number') ? h : '');
+    }
+
+    const awayR = linescore?.teams?.away?.runs;
+    const homeR = linescore?.teams?.home?.runs;
+    const awayH = linescore?.teams?.away?.hits;
+    const homeH = linescore?.teams?.home?.hits;
+    const awayE = linescore?.teams?.away?.errors;
+    const homeE = linescore?.teams?.home?.errors;
+
+    let html = '<thead><tr><th></th>';
+    for (let i=1;i<=innCount;i++) html += `<th>${i}</th>`;
+    html += '<th class="totHead">R</th><th class="totHead">H</th><th class="totHead">E</th></tr></thead><tbody>';
+
+    html += `<tr><td class="left">${awayAb}</td>`;
+    for (const v of awayRow) html += `<td>${v}</td>`;
+    html += `<td>${(typeof awayR==='number')?awayR:''}</td><td>${(typeof awayH==='number')?awayH:''}</td><td>${(typeof awayE==='number')?awayE:''}</td></tr>`;
+
+    html += `<tr><td class="left">${homeAb}</td>`;
+    for (const v of homeRow) html += `<td>${v}</td>`;
+    html += `<td>${(typeof homeR==='number')?homeR:''}</td><td>${(typeof homeH==='number')?homeH:''}</td><td>${(typeof homeE==='number')?homeE:''}</td></tr>`;
+
+    html += '</tbody>';
+    document.getElementById('linescoreTable').innerHTML = html;
+  }
+
+  async function fetchLive(){
+    const url = `https://statsapi.mlb.com/api/v1.1/game/${GAME_PK}/feed/live`;
+    const res = await fetch(url, {cache:'no-store'});
+    if (!res.ok) throw new Error('feed/live error');
+    return await res.json();
+  }
+
+  function updateUI(feed){
+    const gameData = feed?.gameData;
+    const liveData = feed?.liveData;
+    const awayTeam = gameData?.teams?.away;
+    const homeTeam = gameData?.teams?.home;
+
+    // abreviaturas finales (override o del juego)
+    const awayFinal = OVERRIDE_AWAY || normAbbr(safeAbbr(awayTeam));
+    const homeFinal = OVERRIDE_HOME || normAbbr(safeAbbr(homeTeam));
+
+    document.getElementById('awayAbbr').textContent = awayFinal;
+    document.getElementById('homeAbbr').textContent = homeFinal;
+
+    // si el usuario NO pasó abreviaturas, entonces se auto-ajustan logos del juego real
+    if (!qs("away")) setLogo(document.getElementById("awayLogo"), awayFinal);
+    if (!qs("home")) setLogo(document.getElementById("homeLogo"), homeFinal);
+
+    const awayRec = awayTeam?.record ? `${awayTeam.record.wins}-${awayTeam.record.losses}` : '—';
+    const homeRec = homeTeam?.record ? `${homeTeam.record.wins}-${homeTeam.record.losses}` : '—';
+    document.getElementById('awayRec').textContent = awayRec;
+    document.getElementById('homeRec').textContent = homeRec;
+
+    const gType = gameData?.game?.type || '';
+    document.getElementById('gameType').textContent = (gType === 'E') ? 'EXHIBICIÓN' : 'JUEGO';
+
+    const ls = liveData?.linescore;
+    const status = (gameData?.status?.abstractGameState || '').toLowerCase();
+    const detailed = gameData?.status?.detailedState || '';
+
+    const aRuns = ls?.teams?.away?.runs;
+    const hRuns = ls?.teams?.home?.runs;
+    document.getElementById('awayScore').textContent = (typeof aRuns === 'number') ? aRuns : 0;
+    document.getElementById('homeScore').textContent = (typeof hRuns === 'number') ? hRuns : 0;
+
+    if (status === 'live'){
+      const half = halfEs(ls?.inningHalf);
+      const inn = ls?.currentInning || '';
+      document.getElementById('inningLabel').textContent = `${half} ${inn}`.trim();
+    } else if (status === 'final'){
+      document.getElementById('inningLabel').textContent = 'FINAL';
+    } else {
+      const iso = gameData?.datetime?.dateTime;
+      let hora = '';
+      try{
+        hora = new Intl.DateTimeFormat('es-DO', {timeZone:'America/Santo_Domingo', hour:'numeric', minute:'2-digit'}).format(new Date(iso));
+      }catch{}
+      document.getElementById('inningLabel').textContent = hora ? hora : (detailed || 'PRE');
+    }
+
+    const balls = ls?.balls ?? 0;
+    const strikes = ls?.strikes ?? 0;
+    document.getElementById('countLabel').textContent = `${balls}-${strikes}`;
+
+    const outs = ls?.outs ?? 0;
+    setOuts(outs);
+
+    const off = ls?.offense || {};
+    setBases({ on1: !!off.first, on2: !!off.second, on3: !!off.third });
+
+    renderLinescore(ls);
+  }
+
+  async function poll(){
+    try{
+      const feed = await fetchLive();
+      const now = Date.now();
+      history.push({ t: now, feed });
+      const keepMs = 120000;
+      while (history.length && (now - history[0].t) > keepMs) history.shift();
+    }catch{}
+  }
+
+  function renderDelayed(){
+    const now = Date.now();
+    const target = now - DISPLAY_DELAY_MS;
+
+    let chosen = null;
+    for (let i = history.length - 1; i >= 0; i--){
+      if (history[i].t <= target){ chosen = history[i]; break; }
+    }
+    if (!chosen && history.length) chosen = history[0];
+    if (chosen) updateUI(chosen.feed);
+  }
+
+  poll();
+  setInterval(poll, 3000);
+  setInterval(renderDelayed, 500);
+</script>
+</body>
+</html>
