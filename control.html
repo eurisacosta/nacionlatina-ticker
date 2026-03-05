@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Panel - Nación Latina Scoreboard</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Arial;margin:20px;background:#0b2c55;color:#fff}
+  .card{max-width:820px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:16px}
+  h1{margin:0 0 12px 0;font-size:20px}
+  label{display:block;margin:12px 0 6px;font-weight:800}
+  input,select,button,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.25);color:#fff;box-sizing:border-box}
+  button{cursor:pointer;font-weight:900;background:#ffd54a;color:#000;border:none;margin-top:12px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .hint{opacity:.85;font-size:12px;margin-top:6px;line-height:1.35}
+  textarea{min-height:64px;resize:none;font-family:ui-monospace,Consolas,monospace}
+  .copyBtn{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.2);margin-top:8px}
+  code{background:rgba(0,0,0,.25);padding:2px 6px;border-radius:6px}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Panel — Scoreboard Nación Latina</h1>
+
+    <label>Link del juego (MLB Gameday) o GamePk</label>
+    <input id="gameInput" placeholder="Pega el link o escribe el gamePk (ej: 836150)" />
+
+    <div class="row">
+      <div>
+        <label>Delay (segundos)</label>
+        <input id="delaySec" type="number" min="0" max="300" step="1" value="10" />
+      </div>
+      <div>
+        <label>Perfil de color</label>
+        <select id="theme">
+          <option value="nl">Nación Latina (Rojo/Azul)</option>
+          <option value="dark">Oscuro (Azul)</option>
+          <option value="light">Claro (Blanco)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>AWAY (abreviatura)</label>
+        <input id="awayAbbr" placeholder="Ej: PR, COL, DET, STL" />
+        <div class="hint">Esto carga automáticamente <code>logos/ABBR.png</code></div>
+      </div>
+      <div>
+        <label>HOME (abreviatura)</label>
+        <input id="homeAbbr" placeholder="Ej: DOM, RD, VEN, TB" />
+        <div class="hint">Ej: si pones <code>RD</code>, el sistema lo convierte a <code>DOM</code> (configurable)</div>
+      </div>
+    </div>
+
+    <button id="buildBtn">Generar enlace para OBS</button>
+
+    <label style="margin-top:12px">Enlace listo para pegar en OBS</label>
+    <textarea id="obsUrl" readonly></textarea>
+    <button class="copyBtn" id="copyBtn">Copiar enlace</button>
+
+    <div class="hint" style="margin-top:14px">
+      Panel: <code>http://localhost:8080/control.html</code>
+    </div>
+  </div>
+
+<script>
+  function extractGamePk(text){
+    if(!text) return null;
+    const s = String(text).trim();
+    if (/^\d+$/.test(s)) return s;
+    const m = s.match(/\/gameday\/[^\/]+\/(\d+)\//i) || s.match(/\/gameday\/[^\/]+\/(\d+)\/?/i);
+    if (m && m[1]) return m[1];
+    const m2 = s.match(/(\d{6,})/);
+    if (m2 && m2[1]) return m2[1];
+    return null;
+  }
+
+  function build(){
+    const gamePk = extractGamePk(document.getElementById("gameInput").value) || "836150";
+    const delay = Math.max(0, Math.min(300, parseInt(document.getElementById("delaySec").value || "0", 10)));
+    const theme = document.getElementById("theme").value;
+
+    const away = (document.getElementById("awayAbbr").value || "").trim().toUpperCase();
+    const home = (document.getElementById("homeAbbr").value || "").trim().toUpperCase();
+
+    const v = Date.now();
+    const params = new URLSearchParams();
+    params.set("gamePk", gamePk);
+    params.set("delay", String(delay));
+    params.set("theme", theme);
+    if (away) params.set("away", away);
+    if (home) params.set("home", home);
+    params.set("v", String(v));
+
+    document.getElementById("obsUrl").value = `http://localhost:8080/scoreboard.html?${params.toString()}`;
+  }
+
+  async function copy(){
+    const txt = document.getElementById("obsUrl").value;
+    if (!txt) return;
+    try{ await navigator.clipboard.writeText(txt); }catch{}
+  }
+
+  document.getElementById("buildBtn").addEventListener("click", build);
+  document.getElementById("copyBtn").addEventListener("click", copy);
+
+  // defaults
+  document.getElementById("gameInput").value = "836150";
+  document.getElementById("awayAbbr").value = "DET";
+  document.getElementById("homeAbbr").value = "DOM";
+  build();
+</script>
+</body>
+</html>
