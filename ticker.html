@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MLB / Exhibición (Hora + Score por Equipo + Inning)</title>
+  <style>
+    :root{
+      --h: 96px;
+      --bg1: #06162e;   /* azul marino */
+      --bg2: #0b2a55;   /* azul más vivo */
+      --fg: #ffffff;
+      --accent: #ffd54a;
+      --speed: 140;     /* px/seg */
+      --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    html,body{margin:0;background:transparent;overflow:hidden}
+
+    #bar{
+      height:var(--h);
+      background: linear-gradient(90deg, var(--bg1), var(--bg2), var(--bg1));
+      color:var(--fg);
+      font-family:var(--font);
+      display:flex;
+      align-items:center;
+      overflow:hidden;
+      border-top:3px solid rgba(255,255,255,.12);
+      border-bottom:2px solid rgba(255,255,255,.10);
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    #label{
+      padding:0 18px;
+      font-weight:950;
+      letter-spacing:.6px;
+      color:var(--accent);
+      text-transform:uppercase;
+      white-space:nowrap;
+      border-right:1px solid rgba(255,255,255,.15);
+      font-size:20px;
+    }
+
+    /* carril continuo */
+    #viewport{position:relative;flex:1;height:100%;overflow:hidden}
+    #belt{
+      position:absolute;
+      left:0;
+      top:50%;
+      transform:translateY(-50%);
+      display:flex;
+      align-items:center;
+      gap:72px;
+      will-change: transform;
+    }
+    .lane{display:flex; gap:72px; align-items:center; white-space:nowrap}
+
+    .game{
+      display:inline-flex;
+      align-items:center;
+      gap:14px;
+      opacity:.98;
+      font-size:26px;
+      font-weight:850;
+    }
+
+    .team{display:inline-flex;align-items:center;gap:10px}
+
+    /* cajita para que logos oscuros no se pierdan */
+    .logoWrap{
+      width:38px;height:38px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:8px;
+      background: rgba(255,255,255,.10);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.22);
+    }
+    .logo{
+      width:36px;height:36px;
+      filter:
+        drop-shadow(0 2px 6px rgba(0,0,0,.55))
+        drop-shadow(0 0 1px rgba(255,255,255,.95));
+    }
+
+    .code{font-weight:950; letter-spacing:.6px}
+    .scoreNum{font-weight:950; letter-spacing:.2px}
+    .vs{opacity:.45;font-weight:800}
+    .sep{opacity:.35;font-weight:800}
+    .status{font-size:20px;font-weight:950;color:var(--accent);opacity:.98}
+  </style>
+</head>
+
+<body>
+  <div id="bar">
+    <div id="label">MLB</div>
+    <div id="viewport">
+      <div id="belt">
+        <div class="lane" id="laneA">Cargando...</div>
+        <div class="lane" id="laneB">Cargando...</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const laneA = document.getElementById('laneA');
+  const laneB = document.getElementById('laneB');
+  const belt  = document.getElementById('belt');
+
+  const CONFIG = {
+    refreshMs: 20000,
+
+    // ✅ CAMBIO: MLB + Internacional (WBC/exhibiciones)
+    // sportId=1 (MLB) y sportId=51 (International Baseball)
+    sportId: "1,51",
+
+    date: new Date(),
+    timeZone: 'America/Santo_Domingo',
+    locale: 'es-DO'
+  };
+
+  // Abreviaciones MLB por teamId
+  const MLB_ABBR = {
+    108:"LAA",109:"ARI",110:"BAL",111:"BOS",112:"CHC",113:"CIN",114:"CLE",115:"COL",
+    116:"DET",117:"HOU",118:"KC",119:"LAD",120:"WSH",121:"NYM",133:"OAK",134:"PIT",
+    135:"SD",136:"SEA",137:"SF",138:"STL",139:"TB",140:"TEX",141:"TOR",142:"MIN",
+    143:"PHI",144:"ATL",145:"CWS",146:"MIA",147:"NYY",158:"MIL"
+  };
+
+  // Países / selecciones (para exhibiciones tipo WBC)
+  const COUNTRY_ABBR = {
+    "dominican republic": "RD",
+    "republica dominicana": "RD",
+    "república dominicana": "RD",
+    "dominicana": "RD",
+
+    "puerto rico": "PR",
+    "canada": "CAN",
+    "canadá": "CAN",
+    "venezuela": "VEN",
+    "united states": "USA",
+    "estados unidos": "USA",
+    "mexico": "MEX",
+    "méxico": "MEX",
+    "nicaragua": "NIC",
+
+    "netherlands": "NT",
+    "paises bajos": "NT",
+    "países bajos": "NT",
+
+    "panama": "PAN",
+    "panamá": "PAN",
+    "colombia": "COL",
+    "cuba": "CUB",
+    "italy": "ITA",
+    "italia": "ITA",
+    "japan": "JPN",
+    "japon": "JPN",
+    "japón": "JPN",
+    "korea": "KOR",
+    "corea": "KOR",
+    "chinese taipei": "TPE",
+    "taiwan": "TPE",
+    "taiwán": "TPE",
+    "israel": "ISR",
+    "australia": "AUS",
+    "great britain": "GBR",
+    "reino unido": "GBR",
+    "czech republic": "CZE",
+    "republica checa": "CZE",
+    "república checa": "CZE"
+  };
+
+  function normalizeName(s){
+    return (s || "")
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .trim();
+  }
+
+  function fmtDate(d){
+    const yyyy=d.getFullYear();
+    const mm=String(d.getMonth()+1).padStart(2,'0');
+    const dd=String(d.getDate()).padStart(2,'0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  // ✅ logo desde el API/CDN (igual que tú lo tienes)
+  function logoUrl(id){
+    return `https://www.mlbstatic.com/team-logos/${id}.svg`;
+  }
+
+  function teamLabel(team){
+    if (team?.abbreviation && String(team.abbreviation).trim().length <= 4) {
+      return String(team.abbreviation).trim().toUpperCase();
+    }
+
+    const name = team?.name || "";
+    const key = normalizeName(name);
+    if (COUNTRY_ABBR[key]) return COUNTRY_ABBR[key];
+
+    const id = team?.id;
+    if (MLB_ABBR[id]) return MLB_ABBR[id];
+
+    return name;
+  }
+
+  function horaRD(iso){
+    try{
+      return new Intl.DateTimeFormat(CONFIG.locale, {
+        timeZone: CONFIG.timeZone,
+        hour: 'numeric',
+        minute: '2-digit'
+      }).format(new Date(iso));
+    }catch{
+      return '';
+    }
+  }
+
+  function getRuns(game, side){
+    const r = game?.linescore?.teams?.[side]?.runs;
+    return (typeof r === 'number') ? r : null;
+  }
+
+  function inningTexto(game){
+    const inn = game?.linescore?.currentInning;
+    const half = (game?.linescore?.inningHalf || '').toLowerCase();
+    const halfEs = half === 'top' ? 'Alta' : (half === 'bottom' ? 'Baja' : '');
+    if (inn && halfEs) return `${halfEs} ${inn}`;
+    if (inn) return `Inning ${inn}`;
+    return 'En vivo';
+  }
+
+  function state(game){
+    const abstract = (game?.status?.abstractGameState || '').toLowerCase();
+    const detailed = (game?.status?.detailedState || '').toLowerCase();
+
+    if (abstract === 'live' || detailed.includes('in progress')) return {kind:'live', text: inningTexto(game)};
+    if (abstract === 'final' || detailed.includes('final') || detailed.includes('game over')) return {kind:'final', text:'Final'};
+
+    return {kind:'time', text: horaRD(game?.gameDate)};
+  }
+
+  function safeTeamId(team){
+    return team?.id || null;
+  }
+
+  function buildGame(game){
+    const awayT=game?.teams?.away?.team;
+    const homeT=game?.teams?.home?.team;
+
+    const away = teamLabel(awayT);
+    const home = teamLabel(homeT);
+
+    const st = state(game);
+
+    const awayId = safeTeamId(awayT);
+    const homeId = safeTeamId(homeT);
+
+    // ✅ NO INICIADO: solo hora
+    if (st.kind === 'time') {
+      return `
+        <span class="game">
+          <span class="team">
+            <span class="logoWrap"><img class="logo" src="${awayId?logoUrl(awayId):''}" alt="${away}" onerror="this.style.display='none'"></span>
+            <span class="code">${away}</span>
+          </span>
+          <span class="vs">VS</span>
+          <span class="team">
+            <span class="logoWrap"><img class="logo" src="${homeId?logoUrl(homeId):''}" alt="${home}" onerror="this.style.display='none'"></span>
+            <span class="code">${home}</span>
+          </span>
+          <span class="sep">|</span><span class="status">${st.text}</span>
+        </span>`;
+    }
+
+    // ✅ INICIADO / FINAL: score al lado de cada equipo (incluye 0)
+    const ar = getRuns(game,'away');
+    const hr = getRuns(game,'home');
+    const awayScore = (ar === null ? 0 : ar);
+    const homeScore = (hr === null ? 0 : hr);
+
+    return `
+      <span class="game">
+        <span class="team">
+          <span class="logoWrap"><img class="logo" src="${awayId?logoUrl(awayId):''}" alt="${away}" onerror="this.style.display='none'"></span>
+          <span class="code">${away}</span>
+          <span class="scoreNum">${awayScore}</span>
+        </span>
+
+        <span class="vs">VS</span>
+
+        <span class="team">
+          <span class="logoWrap"><img class="logo" src="${homeId?logoUrl(homeId):''}" alt="${home}" onerror="this.style.display='none'"></span>
+          <span class="code">${home}</span>
+          <span class="scoreNum">${homeScore}</span>
+        </span>
+
+        <span class="sep">|</span><span class="status">${st.text}</span>
+      </span>`;
+  }
+
+  // ✅ CAMBIO: hoy + mañana (para juegos que "caen" en el día siguiente por huso)
+  async function fetchGames(){
+    const d0 = new Date(CONFIG.date);
+    const d1 = new Date(CONFIG.date.getTime() + 86400000);
+
+    const dates = [fmtDate(d0), fmtDate(d1)];
+    const all = [];
+
+    for (const dateStr of dates){
+      const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=${encodeURIComponent(CONFIG.sportId)}&date=${dateStr}&hydrate=linescore,teams`;
+      const res = await fetch(url, { cache:'no-store' });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const games = data?.dates?.[0]?.games || [];
+      all.push(...games);
+    }
+
+    // quitar duplicados por gamePk
+    const map = new Map();
+    for (const g of all){
+      if (g?.gamePk) map.set(g.gamePk, g);
+    }
+    const games = Array.from(map.values());
+
+    // ordenar por hora real
+    games.sort((a,b) => new Date(a.gameDate) - new Date(b.gameDate));
+    return games;
+  }
+
+  // Loop continuo sin “brinco”
+  let offset = 0, laneWidth = 0, lastTs = null;
+
+  function ensureLongEnough(){
+    laneWidth = laneA.scrollWidth;
+
+    if (laneWidth < 2800) {
+      laneA.innerHTML = laneA.innerHTML + laneA.innerHTML;
+      laneWidth = laneA.scrollWidth;
+    }
+    laneB.innerHTML = laneA.innerHTML;
+    laneWidth = laneA.scrollWidth;
+  }
+
+  function animate(ts){
+    if (!lastTs) lastTs = ts;
+    const dt = (ts - lastTs) / 1000;
+    lastTs = ts;
+
+    const speed = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--speed')) || 140;
+    offset += speed * dt;
+    if (offset >= laneWidth) offset -= laneWidth;
+
+    belt.style.transform = `translate(${-offset}px, -50%)`;
+    requestAnimationFrame(animate);
+  }
+
+  async function refresh(){
+    try{
+      const games = await fetchGames();
+      laneA.innerHTML = games.map(buildGame).join('') || 'No hay juegos para hoy.';
+      requestAnimationFrame(ensureLongEnough);
+
+      // Si hay juegos internacionales, cambia el label a MLB / WBC (sin cambiar tu estilo)
+      const hasIntl = games.some(g => String(g?.gameType || "").toUpperCase() === "E" || (g?.seriesDescription || "").toLowerCase().includes("world"));
+      document.getElementById("label").textContent = hasIntl ? "MLB / WBC" : "MLB";
+
+    }catch(e){
+      laneA.innerHTML = `Error: ${e.message}`;
+      requestAnimationFrame(ensureLongEnough);
+    }
+  }
+
+  refresh();
+  setInterval(refresh, CONFIG.refreshMs);
+  window.addEventListener('resize', () => requestAnimationFrame(ensureLongEnough));
+  requestAnimationFrame(animate);
+</script>
+</body>
+</html>
